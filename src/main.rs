@@ -1,8 +1,76 @@
 use std::collections::HashMap;
 use std::fmt::Formatter;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Deserializer, Serializer,Serialize};
 use serde::de::{Error, Visitor};
+
+
+pub mod pzn {
+    pub  mod serde {
+        pub mod chrono {
+            pub mod to_ms {
+                use chrono::{DateTime, NaiveDateTime};
+                use serde::de::{Error, Visitor};
+                use serde::{Serializer, Deserialize, Deserializer};
+                use std::fmt::Formatter;
+
+                pub fn serialize<S>(
+                    datetime : &NaiveDateTime,
+                    serializer: S,
+                )-> Result<S::Ok, S::Error>
+                where
+                    S: Serializer,
+                {
+                    let ms = datetime.and_utc().timestamp_millis();
+                    serializer.serialize_i64(ms)
+                }
+                struct  NaiveDateTimeVisitor;
+
+                impl <'de>Visitor<'de> for NaiveDateTimeVisitor{
+                    type Value = NaiveDateTime;
+                    fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
+                        formatter.write_str("Expecting u64")
+                    }
+
+                    fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+                    where
+                        E: Error,
+                    {
+                        let datetime=  DateTime::from_timestamp_millis(v as i64)
+                            .unwrap()
+                            .naive_utc();
+                        Ok(datetime)
+                    }
+                }
+
+                pub fn deserialize<'de, D>(deserializer: D) -> Result<NaiveDateTime, D::Error>
+                where
+                    D: Deserializer<'de>,
+                {
+                    deserializer.deserialize_u64(NaiveDateTimeVisitor)
+                }
+            }
+        }
+    }
+}
+
+
+
+#[test]
+fn test_toml() {
+    let category : Category = Category {
+        id : "123".to_string(),
+        name: "Test".to_string(),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    };
+
+    let toml: String = toml::to_string(&category).unwrap();
+    println!("{}", toml);
+
+    let result: Category = toml::from_str(&toml).unwrap();
+    println!("{:?}", result);
+}
 
 
 fn main() {
@@ -67,6 +135,10 @@ struct CreateUserRequest {
 struct Admin {
     id: String,
     name: Name,
+    #[serde(with = "crate::pzn::serde::chrono::to_ms")]
+    created_at: NaiveDateTime,
+    #[serde(with = "crate::pzn::serde::chrono::to_ms")]
+    updated_at: NaiveDateTime,
 }
 
 #[derive( Debug)]
@@ -127,7 +199,8 @@ fn test_custom_serialize() {
             first: "Eko".to_string(),
             last: "Khannedy".to_string(),
         },
-
+        created_at: Utc::now().naive_utc(),
+        updated_at: Utc::now().naive_utc(),
     };
 
     let json: String = serde_json::to_string(&admin).unwrap();
