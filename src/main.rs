@@ -13,10 +13,18 @@ struct User {
     email: String,
     hobbies: Vec<String>,
     phone: Option<String>,
+    gender: Gender
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+enum Gender {
+    Male,
+    Female,
 }
 
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all(serialize = "SCREAMING_SNAKE_CASE", deserialize = "SCREAMING_SNAKE_CASE"))]
 struct UserLoginRequest {
     username: String,
     password: String,
@@ -35,8 +43,26 @@ struct CreateUserRequest {
     username: String,
     password: String,
     email: String,
+    #[serde(rename= "alamat")]
     address: AddressRequest,
 }
+#[test]
+fn test_enum() {
+    let user = User {
+        username: "testUser".to_string(),
+        email: "test@gmail.com".to_string(),
+        gender: Gender::Male,
+        hobbies: vec!["testHobbies".to_string(), "swimming".to_string(), "baca buku".to_string()],
+        phone: Some("13221321-2323-3232".to_string())
+    };
+
+    let json = serde_json::to_string(&user).unwrap();
+    println!("{}", json);
+
+    let result : User = serde_json::from_str(&json).unwrap();
+    println!("{:?}", result.gender);
+}
+
 
 
 #[test]
@@ -44,6 +70,7 @@ fn test_vector() {
     let user = User {
         username: "testUser".to_string(),
         email: "test@gmail.com".to_string(),
+        gender: Gender::Male,
         hobbies: vec!["testHobbies".to_string(), "swimming".to_string(), "baca buku".to_string()],
         phone: Some("13221321-2323-3232".to_string())
     };
@@ -104,14 +131,14 @@ fn test_create_json_for_user_login_request() {
 #[test]
 fn test_map() {
     let mut values: HashMap<String, i32> = HashMap::new();
-    
+
     values.insert("one".to_string(), 1);
     values.insert("two".to_string(), 2);
     values.insert("three".to_string(), 3);
-    
+
     let json = serde_json::to_string(&values).unwrap();
     println!("{}", json);
-    
+
     let result : HashMap<String, i32> = serde_json::from_str(&json).unwrap();
     println!("{:?}", result);
 }
