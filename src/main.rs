@@ -1,7 +1,9 @@
 use std::collections::HashMap;
-use std::fs::create_dir;
-use std::net::ToSocketAddrs;
-use serde::{Deserialize, Serialize};
+use std::fmt::Formatter;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Deserializer, Serializer,Serialize};
+use serde::de::{Error, Visitor};
+
 
 fn main() {
     println!("Hello, world!");
@@ -13,7 +15,21 @@ struct User {
     email: String,
     hobbies: Vec<String>,
     phone: Option<String>,
-    gender: Gender
+    gender: Gender,
+    payment:Payment,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all(serialize = "SCREAMING_SNAKE_CASE", deserialize = "SCREAMING_SNAKE_CASE"))]
+enum Payment {
+    CreditCard {
+        card_number: String,
+        expiration: String,
+    },
+    BankAccount {
+        account_number: String,
+        bank_name: String,
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -46,6 +62,106 @@ struct CreateUserRequest {
     #[serde(rename= "alamat")]
     address: AddressRequest,
 }
+
+#[derive(Serialize,Deserialize,  Debug)]
+struct Admin {
+    id: String,
+    name: Name,
+}
+
+#[derive( Debug)]
+struct Name {
+    first: String,
+    last: String,
+}
+
+impl Serialize for Name {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let full_name = format!("{} {}", self.first, self.last);
+        serializer.serialize_str(&full_name)
+    }
+}
+
+impl <'de> Visitor<'de> for NameVisitor {
+    type Value = Name;
+
+    fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
+        formatter.write_str("Expecting name string")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: Error,
+
+    {
+        let result: Vec<&str> = v.split(" ").collect();
+        if result.len() != 2 {
+            return Err(E::custom("Expecting first and last name "));
+        }
+        Ok(Name {
+            first: result[0].to_string(),
+            last: result[1].to_string(),
+        })
+    }
+}
+
+impl <'de> Deserialize<'de> for Name {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_string(NameVisitor)
+    }
+}
+
+struct NameVisitor;
+
+#[test]
+fn test_custom_serialize() {
+    let admin = Admin {
+        id: "admin".to_string(),
+        name: Name {
+            first: "Eko".to_string(),
+            last: "Khannedy".to_string(),
+        },
+
+    };
+
+    let json: String = serde_json::to_string(&admin).unwrap();
+    println!("{}", json);
+
+
+    let result: Admin = serde_json::from_str(&json).unwrap();
+    println!("{:?}", result);
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Category {
+    id: String,
+    name: String,
+    #[serde(with= "chrono::serde::ts_milliseconds")]
+    created_at: DateTime<Utc>,
+    #[serde(with= "chrono::serde::ts_milliseconds")]
+    updated_at: DateTime<Utc>,
+}
+
+#[test]
+fn test_chrono() {
+    let category = Category {
+
+    id: "123".to_string(),
+    name: "Rust".to_string(),
+    created_at: chrono::Utc::now(),
+    updated_at: chrono::Utc::now(),
+    };
+
+    let json = serde_json::to_string(&category).unwrap();
+    let result: Category = serde_json::from_str(&json).unwrap();
+    println!("{:?}", result);
+}
 #[test]
 fn test_enum() {
     let user = User {
@@ -53,7 +169,11 @@ fn test_enum() {
         email: "test@gmail.com".to_string(),
         gender: Gender::Male,
         hobbies: vec!["testHobbies".to_string(), "swimming".to_string(), "baca buku".to_string()],
-        phone: Some("13221321-2323-3232".to_string())
+        phone: Some("13221321-2323-3232".to_string()),
+        payment: Payment::BankAccount {
+            bank_name: "Bank BCA".to_string(),
+            account_number: "131232132131".to_string(),
+        }
     };
 
     let json = serde_json::to_string(&user).unwrap();
@@ -72,14 +192,18 @@ fn test_vector() {
         email: "test@gmail.com".to_string(),
         gender: Gender::Male,
         hobbies: vec!["testHobbies".to_string(), "swimming".to_string(), "baca buku".to_string()],
-        phone: Some("13221321-2323-3232".to_string())
+        phone: None,
+        payment: Payment::BankAccount {
+            bank_name: "Bank BCA".to_string(),
+            account_number: "131232132131".to_string(),
+        }
     };
 
     let json = serde_json::to_string(&user).unwrap();
     println!("{}", json);
 
     let result : User = serde_json::from_str(&json).unwrap();
-    println!("{:?}", result);
+    println!("{:?}", result.payment);
 }
 #[test]
 fn test_create_json_from_array() {
